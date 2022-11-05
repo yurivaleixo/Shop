@@ -20,6 +20,8 @@ class _ProductFormPageState extends State<ProductFormPage> {
   final _formKey = GlobalKey<FormState>();
   final _formData = <String, Object>{};
 
+  bool _isLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -68,7 +70,7 @@ class _ProductFormPageState extends State<ProductFormPage> {
     return isValidUrl && endsWithFile;
   }
 
-  void _submitForm() {
+  Future<void> _submitForm() async {
     final isValid = _formKey.currentState?.validate() ?? false;
 
     if (!isValid) {
@@ -77,12 +79,32 @@ class _ProductFormPageState extends State<ProductFormPage> {
 
     _formKey.currentState?.save();
 
-    Provider.of<ProductList>(
-      context,
-      listen: false,
-    ).saveProduct(_formData);
+    setState(() => _isLoading = true);
 
-    Navigator.of(context).pop();
+    try {
+      await Provider.of<ProductList>(
+        context,
+        listen: false,
+      ).saveProduct(_formData);
+
+      Navigator.of(context).pop();
+    } catch (error) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Ocorreu um erro!'),
+          content: const Text('Ocorreu um erro para salvar o produto.'),
+          actions: [
+            TextButton(
+              child: const Text('Ok'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -97,7 +119,11 @@ class _ProductFormPageState extends State<ProductFormPage> {
           )
         ],
       ),
-      body: Padding(
+      body: _isLoading
+          ? const Center(
+        child: CircularProgressIndicator(),
+      )
+          : Padding(
         padding: const EdgeInsets.all(15),
         child: Form(
           key: _formKey,
@@ -113,15 +139,12 @@ class _ProductFormPageState extends State<ProductFormPage> {
                 onSaved: (name) => _formData['name'] = name ?? '',
                 validator: (_name) {
                   final name = _name ?? '';
-
                   if (name.trim().isEmpty) {
                     return 'Nome é obrigatório.';
                   }
-
                   if (name.trim().length < 3) {
                     return 'Nome precisa no mínimo de 3 letras.';
                   }
-
                   return null;
                 },
               ),
@@ -177,8 +200,8 @@ class _ProductFormPageState extends State<ProductFormPage> {
                 children: [
                   Expanded(
                     child: TextFormField(
-                      decoration:
-                      const InputDecoration(labelText: 'Url da Imagem'),
+                      decoration: const InputDecoration(
+                          labelText: 'Url da Imagem'),
                       keyboardType: TextInputType.url,
                       textInputAction: TextInputAction.done,
                       focusNode: _imageUrlFocus,
@@ -213,10 +236,7 @@ class _ProductFormPageState extends State<ProductFormPage> {
                     alignment: Alignment.center,
                     child: _imageUrlController.text.isEmpty
                         ? const Text('Informe a Url')
-                        : FittedBox(
-                      fit: BoxFit.cover,
-                      child: Image.network(_imageUrlController.text),
-                    ),
+                        : Image.network(_imageUrlController.text),
                   ),
                 ],
               ),
